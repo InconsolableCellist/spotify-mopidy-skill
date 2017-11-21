@@ -6,6 +6,7 @@ from mycroft.messagebus.message import Message
 from os.path import dirname, abspath, basename
 from pprint import pprint, pformat
 import re
+import time
 
 # based off the skill "mopidy_skill" by forslund: https://github.com/forslund/mopidy_skill
 
@@ -46,7 +47,9 @@ class SpotifyMopidySkill(MycroftSkill):
         self.register_intent(play_intent, self.handle_play_intent)
 
     def stop(self):
-        pass
+        if self.mopidy:
+                self.mopidy.clear_list()
+                self.mopidy.stop()
 
     def handle_play_intent(self, message):
         keyword = None
@@ -95,9 +98,9 @@ class SpotifyMopidySkill(MycroftSkill):
         LOGGER.info("\tHandling what we know to be a album")
         keywords = self.break_artist(message)
         if 'artist' in keywords:
-            self.handle_results(self.mopidy.search_any(keywords['keyword'], isKeywordAlbum=True, artist_hint=keywords['artist']))
+            self.handle_results(self.mopidy.search_any(keywords['keyword'], isKeywordAlbum=True, artist_hint=keywords['artist']), isAlbum=True, isTrack=False)
         else: 
-            self.handle_results(self.mopidy.search_any(keywords['keyword'], isKeywordAlbum=True))
+            self.handle_results(self.mopidy.search_any(keywords['keyword'], isKeywordAlbum=True), isAlbum=True, isTrack=False)
 
     def handle_keyword(self, message):
         LOGGER.info("\tHandling something we don't know to be a song or album.")
@@ -111,9 +114,18 @@ class SpotifyMopidySkill(MycroftSkill):
     def handle_results(self, result, isAlbum=False, isTrack=True):
         pprint("result is {}".format(result))
         if 'uri' in result: 
-            LOGGER.info("playing {} by {}. URI: {}".format(result['name'], result['artist_name'], result['uri']))
+            self.stop()
+            if isAlbum:
+                self.speak_dialog("playing_album", {'album' : result['name'], 'artist' : result['artist_name']})
+            else:
+                self.speak_dialog("playing_track", {'track' : result['name'], 'artist' : result['artist_name']})
+#            LOGGER.info("playing {} by {}. URI: {}".format(result['name'], result['artist_name'], result['uri']).encode('utf-8'))
+
+            self.stop()
+            time.sleep(3)
             self.play(result['uri'])
         else:
+            self.speak_dialog("no_results")
             LOGGER.info("Didn't get any results, or the result was missing the URI! {}".format(pformat(result)))
 
     def play(self, tracks):
