@@ -5,6 +5,7 @@ from mycroft.util.log import getLogger
 from mycroft.messagebus.message import Message
 from os.path import dirname, abspath, basename
 from pprint import pprint, pformat
+import re
 
 sys.path.append(abspath(dirname(__file__)))
 Mopidy = __import__('mopidy').Mopidy
@@ -21,30 +22,23 @@ class SpotifyMopidySkill(MycroftSkill):
         LOGGER.info("initializing Spotify Mopidy skill")
         self.mopidy = Mopidy()
 
-#        play_intent = IntentBuilder("PlayIntent"). \
-#                require("PlayKeyword"). \
-#                optionally("ArtistKeyword"). \
-#                optionally("SongKeyword"). \
-#                optionally("AlbumKeyword"). \
-#                optionally("Artist"). \
-#                build()
-
         play_intent = IntentBuilder("PlayIntent"). \
                 require("PlayKeyword"). \
-                require("Artist"). \
+                require("Keyword"). \
+                optionally("SongKeyword"). \
+                optionally("AlbumKeyword"). \
                 build()
-        self.register_intent(play_intent, self.handle_play_intent2)
+        self.register_intent(play_intent, self.handle_play_intent)
 
     def stop(self):
         pass
 
-
-    def handle_play_intent2(self, message):
+    def handle_play_intent(self, message):
         keyword = None
         artist = None
         album = None
         result = {}
-        LOGGER.info("message.data is {}".format(pformat(message.data)))
+        LOGGER.info("Handling play intent. message.data is {}".format(pformat(message.data)))
 
         if 'SongKeyword' in message.data:
             LOGGER.info("Song keyword found! {}".format(message.data['SongKeyword']))
@@ -56,64 +50,53 @@ class SpotifyMopidySkill(MycroftSkill):
             LOGGER.info("Don't know if this is an album or an artist.")
             self.handle_keyword(message)
 
-    def get_artist(self, message):
-        artist = ""
-        if 'ArtistKeyword' in message.data:
-            LOGGER.info("Artist keyword found! {}".format(message.data['ArtistKeyword']))
-            artist = message.data['ArtistKeyword']
-        if 'Artist' in message.data:
-            LOGGER.info("Artist found! {}".format(message.data['Artist']))
-            artist = message.data['Artist']
-        return artist
+    # breaks up the keywords into artist and keyword, if possible. Otherwise just keyword
+    def break_artist(self, message):
+        result = {}
+        if not 'Keyword' in message.data:
+            LOGGER.error("received malformed message input to the break_artist parser")
+            return result
+
+        m = re.match(r'^(.+) by (?:the (group|artist|composer|musician|band|rapper|orchestra))?(.*)$', message.data['Keyword'], re.M|re.I)
+        if m: 
+            LOGGER.info("\tI think the keyword/track is {} and the artist is {}".format(m.group(1), m.group(3)))
+            result['keyword'] = m.group(1)
+            result['artist'] = m.group(3)
+        else: 
+            result['keyword'] = message.data['Keyword']
+            LOGGER.info("\tthis messsage doesn't appear to have any artist information")
+        return result
 
     def handle_song(self, message):
         LOGGER.info("\tHandling what we know to be a song")
-        artist = self.get_artist(message)
-        if artist != "":
-            LOGGER.info("\tartist is {}".format(artist))
+        keywords = self.break_artist(message)
+        if 'artist' in keywords:
+            self.handle_results(self.mopidy.search_any(keywords['keyword'], isKeywordTrack=True, artist_hint=keywords['artist']))
+        else: 
+            self.handle_results(self.mopidy.search_any(keywords['keyword'], isKeywordTrack=True))
+
 
     def handle_album(self, message):
         LOGGER.info("\tHandling what we know to be a album")
-        artist = self.get_artist(message)
-        if artist != "":
-            LOGGER.info("\tartist is {}".format(artist))
+        keywords = self.break_artist(message)
+        if 'artist' in keywords:
+            self.handle_results(self.mopidy.search_any(keywords['keyword'], isKeywordAlbum=True, artist_hint=keywords['artist']))
+        else: 
+            self.handle_results(self.mopidy.search_any(keywords['keyword'], isKeywordAlbum=True))
 
     def handle_keyword(self, message):
         LOGGER.info("\tHandling something we don't know to be a song or album.")
-        artist = self.get_artist(message)
-        if artist != "":
-            LOGGER.info("\tartist is {}".format(artist))
+        keywords = self.break_artist(message)
+        if 'artist' in keywords:
+            self.handle_results(self.mopidy.search_any(keywords['keyword'], artist_hint=keywords['artist']))
+        else: 
+            self.handle_results(self.mopidy.search_any(keywords['keyword']))
 
-        
-
-    def handle_play_intent(self, message):
-        keyword = None
-        artist = None
-        album = None
-        result = {}
-
-        LOGGER.info("message.data is {}".format(pformat(message.data)))
-        if 'Keyword' in message.data: 
-            keyword = message.data['Keyword']
-            LOGGER.info("keyword found! {}".format(keyword))
-        if 'Artist' in message.data: 
-            artist = message.data['Artist']
-            LOGGER.info("artist found! {}".format(artist))
-        # DEBUG: uncomment
-        if keyword and artist: 
-            LOGGER.info("searching spotify with keyword {} and artist {}.".format(keyword, artist))
-            result = self.mopdiy.search_any(keyword, artist_hint=artist)
-        elif keyword:
-            LOGGER.info("searching spotify with keyword {}.".format(keyword))
-            result = self.mopidy.search_any(keyword)
-        else:
-            LOGGER.info("wasn't able to obtain even a keyword to search spotify with!")
-
-        #result = self.mopidy.search_any("mask off", isKeywordTrack=True, isKeywordAlbum=False, artist_hint="future")
-        pprint(result)
-        if 'uri' in result:
-            if result['name'] and result['artist_name']:
-                LOGGER.info("playing {} by {}. URI: {}".format(result['name'], result['artist_name'], result['uri']))
+    # takes search results from self.mopidy search functions and plays what's necessary
+    def handle_results(self, result, isAlbum=False, isTrack=True):
+        pprint("result is {}".format(result))
+        if 'uri' in result: 
+            LOGGER.info("playing {} by {}. URI: {}".format(result['name'], result['artist_name'], result['uri']))
             self.play(result['uri'])
         else:
             LOGGER.info("Didn't get any results, or the result was missing the URI! {}".format(pformat(result)))
