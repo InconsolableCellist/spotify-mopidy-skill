@@ -68,6 +68,12 @@ class Mopidy(object):
             r = requests.post(self.url, data=json.dumps(d))
             self.is_playing = False
 
+    def get_current_track(self):
+        d = copy(_base_dict)
+        d['method'] = 'core.playback.get_current_track'
+        r = requests.post(self.url, data=json.dumps(d))
+        return r
+
     def restore_volume(self):
         self.set_volume(self.volume_high)
 
@@ -132,4 +138,12 @@ class Mopidy(object):
                     result['uri'] = target['uri']
 
         return result
+
+#mopidy = Mopidy()
+#result = mopidy.get_current_track().json()['result']
+#if result: 
+#        pprint("currently playing {} by {}".format(result['album']['name'], \
+#                result['album']['artists'][0]['name']))
+#else:
+#        pprint("Nothing")
 

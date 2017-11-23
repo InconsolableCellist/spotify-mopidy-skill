@@ -46,6 +46,11 @@ class SpotifyMopidySkill(MycroftSkill):
                 build()
         self.register_intent(play_intent, self.handle_play_intent)
 
+        what_is_playing_intent = IntentBuilder("WhatIsPlayingIntent"). \
+                require("WhatSong"). \
+                build()
+        self.register_intent(what_is_playing_intent, self.handle_what_is_playing_intent)
+
     def stop(self):
         if self.mopidy:
                 self.mopidy.clear_list()
@@ -127,6 +132,18 @@ class SpotifyMopidySkill(MycroftSkill):
         else:
             self.speak_dialog("no_results")
             LOGGER.info("Didn't get any results, or the result was missing the URI! {}".format(pformat(result)))
+
+    def handle_what_is_playing_intent(self, message):
+        LOGGER.info("We've been asked to find out what's currently playing")
+        result = self.mopidy.get_current_track().json()['result']
+        if result: 
+            track_name = result['album']['name']
+            artist_name = result['album']['artists'][0]['name']
+            self.speak_dialog("whats_playing", {'song' : track_name, 'artist' : artist_name})
+            LOGGER.info("We're currently playing {} by {}".format(track_name, artist_name))
+        else: 
+            self.speak_dialog("nothing_playing")
+            LOGGER.info("Nothing is currently playing")
 
     def play(self, tracks):
         self.mopidy.clear_list()
