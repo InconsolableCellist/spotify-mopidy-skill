@@ -120,7 +120,7 @@ class SpotifyMopidySkill(MycroftSkill):
     def handle_keyword(self, message):
         LOGGER.info("\tHandling something we don't know to be a song or album.")
         # handle the special case where a user wants to hear a selection of music from an artist
-        m = re.match(r'^(:?some|a collection of)?\s*(?:music|tracks|songs|albums|pieces|compositions) by (:?the)?\s*(?:group|artist|composer|musician|band|rapper|orchestra)?(.*)$', message.data['Keyword'], re.M|re.I)
+        m = re.match(r'^(:?some|a collection of)?\s*(?:music|tracks|songs|song|albums|album|pieces|compositions) by (:?the)?\s*(?:group|artist|composer|musician|band|rapper|orchestra)?(.*)$', message.data['Keyword'], re.M|re.I)
         if m: 
             LOGGER.info("\tI think we're being asked to play a selection of music by {}".format(m.group(3)))
             self.handle_results(self.mopidy.search_any(None, artist_hint=m.group(3), isKeywordAlbum=False, returnRandomOrder=True), 
@@ -154,10 +154,12 @@ class SpotifyMopidySkill(MycroftSkill):
         LOGGER.info("We've been asked to find out what's currently playing")
         result = self.mopidy.get_current_track().json()['result']
         if result: 
-            track_name = result['album']['name']
+            LOGGER.debug("result is {}".format(pformat(result)))
+            album_name = result['album']['name']
             artist_name = result['album']['artists'][0]['name']
+            track_name = result['name']
             self.speak_dialog("whats_playing", {'song' : track_name, 'artist' : artist_name})
-            LOGGER.info("We're currently playing {} by {}".format(track_name, artist_name))
+            LOGGER.info("We're currently playing {} by {} off {}".format(track_name, artist_name, album_name))
         else: 
             self.speak_dialog("nothing_playing")
             LOGGER.info("Nothing is currently playing")
