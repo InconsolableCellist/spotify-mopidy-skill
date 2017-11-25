@@ -139,6 +139,24 @@ class Mopidy(object):
 
         return result
 
+    def pause(self):                                                            
+        r = {}
+        if self.is_playing:                                                     
+            d = copy(_base_dict)                                                
+            d['method'] = 'core.playback.pause'                                 
+            r = requests.post(self.url, data=json.dumps(d))                     
+        return r
+                                                                                
+    def resume(self):                                                           
+        r = {}
+        if self.is_playing:                                                     
+            d = copy(_base_dict)                                                
+            d['method'] = 'core.playback.resume'                                
+            r = requests.post(self.url, data=json.dumps(d))
+        return r
+
+
+
 #mopidy = Mopidy()
 #result = mopidy.get_current_track().json()['result']
 #if result: 

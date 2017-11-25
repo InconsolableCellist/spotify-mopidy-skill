@@ -51,6 +51,16 @@ class SpotifyMopidySkill(MycroftSkill):
                 build()
         self.register_intent(what_is_playing_intent, self.handle_what_is_playing_intent)
 
+        pause_intent = IntentBuilder("PauseIntent"). \
+                require("PauseKeyword"). \
+                build()
+        self.register_intent(pause_intent, self.handle_pause_intent)
+
+        resume_intent = IntentBuilder("ResumeIntent"). \
+                require("ResumeKeyword"). \
+                build()
+        self.register_intent(resume_intent, self.handle_resume_intent)
+
     def stop(self):
         if self.mopidy:
                 self.mopidy.clear_list()
@@ -144,6 +154,14 @@ class SpotifyMopidySkill(MycroftSkill):
         else: 
             self.speak_dialog("nothing_playing")
             LOGGER.info("Nothing is currently playing")
+
+    def handle_pause_intent(self, message):
+        LOGGER.info("Pausing")
+        self.mopidy.pause()
+
+    def handle_resume_intent(self, message):
+        LOGGER.info("Unpausing")
+        self.mopidy.resume()
 
     def play(self, tracks):
         self.mopidy.clear_list()
