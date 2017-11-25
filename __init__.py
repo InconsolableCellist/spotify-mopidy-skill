@@ -119,11 +119,18 @@ class SpotifyMopidySkill(MycroftSkill):
 
     def handle_keyword(self, message):
         LOGGER.info("\tHandling something we don't know to be a song or album.")
-        keywords = self.break_artist(message)
-        if 'artist' in keywords:
-            self.handle_results(self.mopidy.search_any(keywords['keyword'], artist_hint=keywords['artist']))
+        # handle the special case where a user wants to hear a selection of music from an artist
+        m = re.match(r'^(:?some|a collection of)?\s*(?:music|tracks|songs|albums|pieces|compositions) by (:?the)?\s*(?:group|artist|composer|musician|band|rapper|orchestra)?(.*)$', message.data['Keyword'], re.M|re.I)
+        if m: 
+            LOGGER.info("\tI think we're being asked to play a selection of music by {}".format(m.group(3)))
+            self.handle_results(self.mopidy.search_any(None, artist_hint=m.group(3), isKeywordAlbum=False, returnRandomOrder=True), 
+                    isAlbum=True, isTrack=False)
         else: 
-            self.handle_results(self.mopidy.search_any(keywords['keyword']))
+            keywords = self.break_artist(message)
+            if 'artist' in keywords:
+                self.handle_results(self.mopidy.search_any(keywords['keyword'], artist_hint=keywords['artist']))
+            else: 
+                self.handle_results(self.mopidy.search_any(keywords['keyword']))
 
     # takes search results from self.mopidy search functions and plays what's necessary
     def handle_results(self, result, isAlbum=False, isTrack=True):
